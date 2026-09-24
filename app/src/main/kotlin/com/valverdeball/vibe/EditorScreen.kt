@@ -83,6 +83,7 @@ fun EditorScreen() {
         BasicTextField(
             value = textFieldValue,
             onValueChange = { new ->
+                android.util.Log.d("VIBE", "old='${textFieldValue.text}' new='${new.text}' selStart=${new.selection.start}")
                 textBuffer.setFullText(new.text)
                 lines = textBuffer.getAllLines()
                 textFieldValue = new
