@@ -22,6 +22,11 @@ class TextBuffer(initialText: String = "") {
         return lines.joinToString("\n")
     }
 
+    fun setFullText(text: String) {
+        lines.clear()
+        lines.addAll(text.split("\n").map { StringBuilder(it) })
+    }
+
     /**
      * inserts a single character at (line, col)
      * return the new cursor position ar Pair(line, col)

@@ -1,3 +1,4 @@
+// lazy to write commentaries, sorry, atleast you have... 'javadoc' in TextBuffer
 package com.valverdeball.vibe
 
 import androidx.compose.foundation.Canvas
@@ -6,28 +7,25 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
 
 @Composable
 fun EditorScreen() {
@@ -52,9 +50,10 @@ fun EditorScreen() {
     ).size.height.toFloat()
     val leftPadding = 16f
 
-    var cursorLine by remember { mutableIntStateOf(1) }
-    var cursorCol by remember { mutableIntStateOf(4) }
-    var textFieldValue by remember { mutableStateOf(TextFieldValue("")) }
+    var textFieldValue by remember {
+        val initialText = textBuffer.fullText()
+        mutableStateOf(TextFieldValue(text = initialText, selection = TextRange(initialText.length)))
+    }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -65,19 +64,31 @@ fun EditorScreen() {
         style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = fontSize)
     ).size.width.toFloat()
 
+    fun offsetToLineCol(text: String, offset: Int): Pair<Int, Int> {
+        var line = 0
+        var lastNewline = -1
+        for (i in 0 until offset) {
+            if (text[i] == '\n') {
+                line++
+                lastNewline = i
+            }
+        }
+        val col = offset - lastNewline - 1
+        return Pair(line, col)
+    }
+
+    val (cursorLine, cursorCol) = offsetToLineCol(textFieldValue.text, textFieldValue.selection.start)
+
     Box(modifier = Modifier.fillMaxSize()) {
         BasicTextField(
             value = textFieldValue,
             onValueChange = { new ->
-                val typed = new.text.getOrNull(new.text.length - 1)
-                if (typed != null) {
-                    val (newLine, newCol) = textBuffer.insertChar(cursorLine, cursorCol, typed)
-                    cursorLine = newLine
-                    cursorCol = newCol
-                    lines = textBuffer.getAllLines()
-                }
-                textFieldValue = TextFieldValue("")
+                textBuffer.setFullText(new.text)
+                lines = textBuffer.getAllLines()
+                textFieldValue = new
+                cursorVisible = true
             },
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.None),
             modifier = Modifier
             .focusRequester(focusRequester)
             .size(1.dp)
@@ -97,8 +108,13 @@ fun EditorScreen() {
                 .roundToInt()
                 .coerceIn(0, lineLength)
 
-                cursorLine = tappedLine
-                cursorCol = tappedCol
+                var flatOffset = 0
+                for (i in 0 until tappedLine) {
+                    flatOffset += lines[i].length + 1
+                }
+                flatOffset += tappedCol
+
+                textFieldValue = textFieldValue.copy(selection = TextRange(flatOffset))
                 cursorVisible = true
                 focusRequester.requestFocus()
             }
@@ -123,7 +139,7 @@ fun EditorScreen() {
             val cursorX = leftPadding + (cursorCol * charWidth)
 
             val cursorLineLayout = textMeasurer.measure(
-                text = lines[cursorLine].ifEmpty { " " },
+                text = lines.getOrElse(cursorLine) { " " }.ifEmpty { " " },
                 style = TextStyle(fontFamily = FontFamily.Monospace, fontSize = fontSize, color = Color.White)
             )
             val cursorTop = cursorLine * lineHeightPx
